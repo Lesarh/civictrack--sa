@@ -1,0 +1,129 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CivicTrack</title>
+
+    <link rel="stylesheet" href="{% static 'civictrack/style.css' %}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+
+    <style>
+        #map {
+            height: 400px;
+            margin: 15px 0;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>Report an Issue 🚨</h1>
+
+<!-- 🔔 POPUP NOTIFICATIONS -->
+{% if messages %}
+    <div id="notification-container">
+        {% for message in messages %}
+            <div class="notification success">
+                {{ message }}
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+<form method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <input type="text" name="title" placeholder="Title" required>
+    <textarea name="description" placeholder="Description" required></textarea>
+
+    <input type="text" name="location" id="location-input" placeholder="Type location" required>
+
+    <input type="hidden" name="latitude" id="latitude">
+    <input type="hidden" name="longitude" id="longitude">
+
+    <input type="file" name="image">
+
+    <button type="button" id="find-location-btn">Find Location</button>
+
+    <div id="map"></div>
+
+    <button type="submit">Submit</button>
+</form>
+
+<hr>
+
+<h2>Reports</h2>
+
+{% for report in reports %}
+<div class="report">
+    <h3>{{ report.title }}</h3>
+    <p>{{ report.description }}</p>
+    <p><strong>Location:</strong> {{ report.location }}</p>
+    <p><strong>Status:</strong> {{ report.status }}</p>
+
+    {% if report.image %}
+        <img src="{{ report.image.url }}" width="200">
+    {% endif %}
+
+    <!-- 💬 COMMENTS -->
+    <h4>Comments</h4>
+    {% for comment in report.comment_set.all %}
+        <p>💬 {{ comment.text }}</p>
+    {% endfor %}
+
+    <form method="POST" action="/comment/{{ report.id }}/">
+        {% csrf_token %}
+        <input type="text" name="text" placeholder="Add comment">
+        <button type="submit">Send</button>
+    </form>
+</div>
+{% endfor %}
+
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+window.onload = function () {
+
+    const map = L.map('map').setView([-25.7479, 28.2293], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
+    }).addTo(map);
+
+    const reports = {{ report_data|safe }};
+
+    reports.forEach(r => {
+        L.marker([r.lat, r.lng]).addTo(map)
+            .bindPopup(`<b>${r.title}</b><br>${r.description}`);
+    });
+
+    let marker;
+
+    document.getElementById('find-location-btn').onclick = function () {
+        const place = document.getElementById('location-input').value;
+
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${place}`)
+            .then(res => res.json())
+            .then(data => {
+                const lat = data[0].lat;
+                const lon = data[0].lon;
+
+                document.getElementById('latitude').value = lat;
+                document.getElementById('longitude').value = lon;
+
+                map.setView([lat, lon], 13);
+
+                if (marker) map.removeLayer(marker);
+
+                marker = L.marker([lat, lon]).addTo(map);
+            });
+    };
+};
+</script>
+
+</body>
+</html>
